@@ -1,8 +1,6 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
-# dependencies
-/node_modules
-/.pnp
+# --- DEPENDENCIAS ---
+node_modules/
+.pnp
 .pnp.*
 .yarn/*
 !.yarn/patches
@@ -10,32 +8,38 @@
 !.yarn/releases
 !.yarn/versions
 
-# testing
-/coverage
+# --- BUILD OUTPUTS ---
+.next/
+out/
+build/
+dist/
+/.vercel
 
-# next.js
-/.next/
-/out/
+# --- SEGURIDAD (CRÍTICO) ---
+# Ignora todos los archivos de entorno
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Solo permite un ejemplo (template) si existiera
+!.env.example
 
-# production
-/build
+# --- TESTING & CALIDAD ---
+coverage/
+*.lcov
+.eslintcache
 
-# misc
+# --- TYPESCRIPT ---
+*.tsbuildinfo
+# NOTA: Mantenemos next-env.d.ts FUERA del ignore (quitamos la regla) 
+# para consistencia entre devs.
+
+# --- SISTEMA / MISC ---
 .DS_Store
+Thumbs.db
 *.pem
-
-# debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-
-# env files (can opt-in for committing if needed)
-.env*
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
