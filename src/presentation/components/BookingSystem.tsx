@@ -3,66 +3,37 @@
 import React, { useState, useMemo } from "react";
 import { format, isSameDay, startOfDay, addDays } from "date-fns";
 import { es } from "date-fns/locale";
-import { Calendar } from "@/components/ui/calendar";
+import { Calendar } from "@/presentation/ui/calendar";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+} from "@/presentation/ui/card";
+import { Button } from "@/presentation/ui/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
+} from "@/presentation/ui/select";
+import { Label } from "@/presentation/ui/label";
+import { Input } from "@/presentation/ui/input";
 import { cn } from "@/lib/utils";
-
-// Tipos
-interface Service {
-  id: string;
-  name: string;
-  duration: number;
-}
-
-interface Appointment {
-  date: Date;
-  hour: number;
-  serviceId: string;
-  duration: number;
-}
+import { useAppointments } from "@/presentation/hooks/useAppointments";
+import { SERVICES } from "@/domain/entities/Service";
 
 // Configuración del Salón
 const MAX_CHAIRS = 3;
 
-// Servicios y Duraciones
-const SERVICES: Service[] = [
-  { id: "corte", name: "Corte de cabello", duration: 1 },
-  { id: "balayage", name: "Balayage", duration: 5 },
-  { id: "color", name: "Correcion de color", duration: 3 },
-  { id: "tinte", name: "Tinte", duration: 2 },
-];
-
 // Horas de atención (9:00 AM a 4:00 PM)
 const BUSINESS_HOURS = [9, 10, 11, 12, 13, 14, 15, 16];
 
-// Mock Data Inicial
-const INITIAL_APPOINTMENTS: Appointment[] = [
-  { date: addDays(startOfDay(new Date()), 1), hour: 9, serviceId: "balayage", duration: 5 },
-  { date: addDays(startOfDay(new Date()), 1), hour: 14, serviceId: "tinte", duration: 2 },
-  { date: addDays(startOfDay(new Date()), 1), hour: 16, serviceId: "corte", duration: 1 },
-  { date: addDays(startOfDay(new Date()), 2), hour: 10, serviceId: "corte", duration: 1 },
-  { date: addDays(startOfDay(new Date()), 2), hour: 14, serviceId: "tinte", duration: 2 },
-];
-
 export default function BookingSystem() {
+  const { appointments, createAppointment, loading } = useAppointments();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [appointments, setAppointments] = useState<Appointment[]>(INITIAL_APPOINTMENTS);
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedHour, setSelectedHour] = useState<string>("");
   const [firstName, setFirstName] = useState("");
@@ -84,7 +55,7 @@ export default function BookingSystem() {
     
     const occupancy: Record<number, number> = {};
     dayAppointments.forEach(app => {
-      for (let i = 0; i < app.duration; i++) {
+      for (let i = 0; i < app.service.duration; i++) {
         const h = app.hour + i;
         occupancy[h] = (occupancy[h] || 0) + 1;
       }
@@ -118,25 +89,28 @@ export default function BookingSystem() {
     return { full, available };
   }, [getDayStatus]);
 
-  const handleBooking = (e: React.FormEvent) => {
+  const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedDate || !selectedHour || !firstName || !lastName || !phone || !selectedService) return;
 
-    const newAppointment: Appointment = {
-      date: selectedDate,
-      hour: parseInt(selectedHour),
-      serviceId: selectedService.id,
-      duration: selectedService.duration,
-    };
+    try {
+      await createAppointment({
+        date: selectedDate,
+        hour: parseInt(selectedHour),
+        client: { firstName, lastName, phone },
+        service: selectedService,
+      });
 
-    setAppointments([...appointments, newAppointment]);
-    setSelectedHour("");
-    setSelectedServiceId("");
-    setFirstName("");
-    setLastName("");
-    setPhone("");
-    setIsSuccess(true);
-    setTimeout(() => setIsSuccess(false), 3000);
+      setSelectedHour("");
+      setSelectedServiceId("");
+      setFirstName("");
+      setLastName("");
+      setPhone("");
+      setIsSuccess(true);
+      setTimeout(() => setIsSuccess(false), 3000);
+    } catch (err) {
+      alert("Error al agendar cita: " + (err instanceof Error ? err.message : "Error desconocido"));
+    }
   };
 
   const availableHours = useMemo(() => {
@@ -231,7 +205,7 @@ export default function BookingSystem() {
                 <form onSubmit={handleBooking} className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
-                      <Label htmlFor="firstName" className="text-pink-900 font-medium ml-1">Nombre(s)</Label>
+                      <Label htmlFor="firstName" className="text-pink-900 font-medium ml-1">Nombre(s) *</Label>
                       <Input
                         id="firstName"
                         placeholder="Ej. Sofia"
@@ -242,7 +216,7 @@ export default function BookingSystem() {
                       />
                     </div>
                     <div className="space-y-3">
-                      <Label htmlFor="lastName" className="text-pink-900 font-medium ml-1">Apellido(s)</Label>
+                      <Label htmlFor="lastName" className="text-pink-900 font-medium ml-1">Apellido(s) *</Label>
                       <Input
                         id="lastName"
                         placeholder="Ej. Rodriguez"
@@ -255,7 +229,7 @@ export default function BookingSystem() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="phone" className="text-pink-900 font-medium ml-1">Celular</Label>
+                    <Label htmlFor="phone" className="text-pink-900 font-medium ml-1">Celular *</Label>
                     <Input
                       id="phone"
                       type="tel"
@@ -269,7 +243,7 @@ export default function BookingSystem() {
 
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
-                      <Label htmlFor="service" className="text-pink-900 font-medium ml-1">Tipo de Servicio</Label>
+                      <Label htmlFor="service" className="text-pink-900 font-medium ml-1">Tipo de Servicio *</Label>
                       <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
                         <SelectTrigger id="service" className="h-12 border-pink-100 focus:ring-pink-200 rounded-xl bg-white/50">
                           <SelectValue placeholder="Servicio" />
@@ -285,7 +259,7 @@ export default function BookingSystem() {
                     </div>
 
                     <div className="space-y-3">
-                      <Label htmlFor="hour" className="text-pink-900 font-medium ml-1">Hora de Preferencia</Label>
+                      <Label htmlFor="hour" className="text-pink-900 font-medium ml-1">Hora de Preferencia *</Label>
                       <Select value={selectedHour} onValueChange={setSelectedHour} disabled={!selectedServiceId}>
                         <SelectTrigger id="hour" className="h-12 border-pink-100 focus:ring-pink-200 rounded-xl bg-white/50">
                           <SelectValue placeholder={selectedServiceId ? "Horario" : "---"} />

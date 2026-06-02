@@ -1,4 +1,4 @@
-import BookingSystem from "@/components/BookingSystem";
+import BookingSystem from "@/presentation/components/BookingSystem";
 
 export default function Home() {
   return (
