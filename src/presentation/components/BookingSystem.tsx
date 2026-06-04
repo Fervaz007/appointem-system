@@ -39,6 +39,7 @@ export default function BookingSystem() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
 
   const [isSuccess, setIsSuccess] = useState(false);
 
@@ -97,7 +98,7 @@ export default function BookingSystem() {
       await createAppointment({
         date: selectedDate,
         hour: parseInt(selectedHour),
-        client: { firstName, lastName, phone },
+        client: { firstName, lastName, phone, ...(email ? { email } : {}) },
         service: selectedService,
       });
 
@@ -106,6 +107,7 @@ export default function BookingSystem() {
       setFirstName("");
       setLastName("");
       setPhone("");
+      setEmail("");
       setIsSuccess(true);
       setTimeout(() => setIsSuccess(false), 3000);
     } catch (err) {
@@ -238,6 +240,18 @@ export default function BookingSystem() {
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
                       className="h-12 border-pink-100 focus:ring-pink-200 focus:border-pink-300 rounded-xl bg-white/50"
                       required
+                    />
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label htmlFor="email" className="text-pink-900 font-medium ml-1">Correo Electrónico</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Ej. sofia@correo.com"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      className="h-12 border-pink-100 focus:ring-pink-200 focus:border-pink-300 rounded-xl bg-white/50"
                     />
                   </div>
 
