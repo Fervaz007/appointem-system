@@ -23,16 +23,30 @@ import { Label } from "@/presentation/ui/label";
 import { Input } from "@/presentation/ui/input";
 import { cn } from "@/lib/utils";
 import { useAppointments } from "@/presentation/hooks/useAppointments";
-import { SERVICES } from "@/domain/entities/Service";
+import { useServices } from "@/presentation/hooks/useServices";
+import { useChairs } from "@/presentation/hooks/useChairs";
+import { useDaySchedules } from "@/presentation/hooks/useDaySchedules";
+import { DaySchedule } from "@/domain/entities/DaySchedule";
 
-// Configuración del Salón
-const MAX_CHAIRS = 3;
+// Configuración del Salón (usada como respaldo si aún no hay datos de admin)
+const DEFAULT_MAX_CHAIRS = 3;
 
-// Horas de atención (9:00 AM a 4:00 PM)
-const BUSINESS_HOURS = [9, 10, 11, 12, 13, 14, 15, 16];
+// Horas de atención por default: abre 9:00 AM, cierra 4:00 PM (16h). Un día
+// puede sobreescribir la hora de cierre (ej. 7pm) o cerrar por completo desde
+// el panel de admin (day_schedules).
+const BUSINESS_OPEN_HOUR = 9;
+const DEFAULT_BUSINESS_CLOSE_HOUR = 16;
+
+function formatHourLabel(hour: number): string {
+  if (hour === 12) return "12 PM";
+  return hour > 12 ? `${hour - 12} PM` : `${hour} AM`;
+}
 
 export default function BookingSystem() {
   const { appointments, createAppointment, loading } = useAppointments();
+  const { services } = useServices();
+  const { chairs } = useChairs();
+  const { schedules } = useDaySchedules();
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedHour, setSelectedHour] = useState<string>("");
@@ -43,9 +57,54 @@ export default function BookingSystem() {
 
   const [isSuccess, setIsSuccess] = useState(false);
 
-  const selectedService = useMemo(() => 
-    SERVICES.find(s => s.id === selectedServiceId), 
-    [selectedServiceId]
+  const selectedService = useMemo(() =>
+    services.find(s => s.id === selectedServiceId),
+    [services, selectedServiceId]
+  );
+
+  const scheduleByDate = useMemo(
+    () => new Map(schedules.map((s) => [s.date, s])),
+    [schedules]
+  );
+
+  const getScheduleForDate = React.useCallback(
+    (date: Date): DaySchedule | undefined => scheduleByDate.get(format(date, "yyyy-MM-dd")),
+    [scheduleByDate]
+  );
+
+  // Un día está cerrado si es domingo, ya pasó, o el admin lo marcó como cerrado.
+  const isDayClosed = React.useCallback(
+    (date: Date) => {
+      if (date < startOfDay(new Date())) return true;
+      if (date.getDay() === 0) return true;
+      return getScheduleForDate(date)?.isClosed ?? false;
+    },
+    [getScheduleForDate]
+  );
+
+  const getCloseHourForDate = React.useCallback(
+    (date: Date) => getScheduleForDate(date)?.closeHour ?? DEFAULT_BUSINESS_CLOSE_HOUR,
+    [getScheduleForDate]
+  );
+
+  const getMaxChairsForDate = React.useCallback(
+    (date: Date) => {
+      const override = getScheduleForDate(date)?.chairsAvailable;
+      if (override != null) return override;
+      return chairs.length > 0 ? chairs.filter((c) => c.active).length : DEFAULT_MAX_CHAIRS;
+    },
+    [getScheduleForDate, chairs]
+  );
+
+  const getBusinessHoursForDate = React.useCallback(
+    (date: Date) => {
+      const closeHour = getCloseHourForDate(date);
+      return Array.from(
+        { length: Math.max(closeHour - BUSINESS_OPEN_HOUR, 0) },
+        (_, i) => BUSINESS_OPEN_HOUR + i
+      );
+    },
+    [getCloseHourForDate]
   );
 
   // Obtener cuántas sillas están ocupadas en cada hora para una fecha
@@ -53,7 +112,7 @@ export default function BookingSystem() {
     const dayAppointments = appointments.filter((app) =>
       isSameDay(app.date, date)
     );
-    
+
     const occupancy: Record<number, number> = {};
     dayAppointments.forEach(app => {
       for (let i = 0; i < app.service.duration; i++) {
@@ -67,14 +126,16 @@ export default function BookingSystem() {
   // Lógica para determinar el estado de un día
   const getDayStatus = React.useCallback((date: Date) => {
     const occupancy = getChairOccupancyForDate(date);
-    const hasAnyBooking = BUSINESS_HOURS.some(h => (occupancy[h] || 0) > 0);
+    const hours = getBusinessHoursForDate(date);
+    const maxChairs = getMaxChairsForDate(date);
+    const hasAnyBooking = hours.some(h => (occupancy[h] || 0) > 0);
     if (!hasAnyBooking) return "available";
 
-    const allHoursFull = BUSINESS_HOURS.every(h => (occupancy[h] || 0) >= MAX_CHAIRS);
+    const allHoursFull = hours.every(h => (occupancy[h] || 0) >= maxChairs);
     if (allHoursFull) return "full";
 
     return "partial";
-  }, [getChairOccupancyForDate]);
+  }, [getChairOccupancyForDate, getBusinessHoursForDate, getMaxChairsForDate]);
 
   const modifiers = useMemo(() => {
     const full: Date[] = [];
@@ -82,13 +143,15 @@ export default function BookingSystem() {
 
     for (let i = 0; i < 90; i++) {
       const day = addDays(startOfDay(new Date()), i);
+      if (isDayClosed(day)) continue;
+
       const status = getDayStatus(day);
       if (status === "full") full.push(day);
       else available.push(day);
     }
 
     return { full, available };
-  }, [getDayStatus]);
+  }, [getDayStatus, isDayClosed]);
 
   const handleBooking = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -118,17 +181,37 @@ export default function BookingSystem() {
   const availableHours = useMemo(() => {
     if (!selectedDate || !selectedService) return [];
     const occupancy = getChairOccupancyForDate(selectedDate);
-    
-    return BUSINESS_HOURS.filter((hour) => {
+    const hours = getBusinessHoursForDate(selectedDate);
+    const closeHour = getCloseHourForDate(selectedDate);
+    const maxChairs = getMaxChairsForDate(selectedDate);
+
+    return hours.filter((hour) => {
+      // La cita nunca debe terminar después de la hora de cierre de ese día.
+      if (hour + selectedService.duration > closeHour) return false;
+
       for (let i = 0; i < selectedService.duration; i++) {
         const currentHour = hour + i;
-        if (!BUSINESS_HOURS.includes(currentHour) || (occupancy[currentHour] || 0) >= MAX_CHAIRS) {
+        if ((occupancy[currentHour] || 0) >= maxChairs) {
           return false;
         }
       }
       return true;
     });
-  }, [selectedDate, selectedService, getChairOccupancyForDate]);
+  }, [
+    selectedDate,
+    selectedService,
+    getChairOccupancyForDate,
+    getBusinessHoursForDate,
+    getCloseHourForDate,
+    getMaxChairsForDate,
+  ]);
+
+  const selectedDateBusinessHours = useMemo(
+    () => (selectedDate ? getBusinessHoursForDate(selectedDate) : []),
+    [selectedDate, getBusinessHoursForDate]
+  );
+  const selectedDateMaxChairs = selectedDate ? getMaxChairsForDate(selectedDate) : DEFAULT_MAX_CHAIRS;
+  const selectedDateClosed = selectedDate ? isDayClosed(selectedDate) : false;
 
   return (
     <div className="min-h-screen bg-[#fff1f2] p-4 md:p-8 font-sans text-slate-900">
@@ -165,17 +248,17 @@ export default function BookingSystem() {
                 selected={selectedDate}
                 onSelect={setSelectedDate}
                 locale={es}
-                disabled={{ before: startOfDay(new Date()) }}
+                disabled={isDayClosed}
                 modifiers={modifiers}
                 modifiersClassNames={{
                   full: "!bg-red-100 !text-red-700 hover:!bg-red-200 rounded-full",
                   available: "!bg-green-50 !text-green-700 hover:!bg-green-100 rounded-full",
                 }}
-                className="p-0 scale-105 transition-transform origin-top"
+                className="p-0 scale-110 transition-transform origin-top"
                 classNames={{
                   month_caption: "text-lg font-medium text-pink-700 mb-4",
-                  weekday: "text-pink-400 font-medium w-12",
-                  day: "text-base h-12 w-12",
+                  weekday: "text-pink-400 font-medium w-14",
+                  day: "text-base h-14 w-14",
                 }}
               />
             </CardContent>
@@ -203,7 +286,12 @@ export default function BookingSystem() {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-8 space-y-8">
-              {selectedDate && (
+              {selectedDate && selectedDateClosed && (
+                <p className="text-center text-red-500 font-medium py-8">
+                  El negocio no abre este día. Elige otra fecha.
+                </p>
+              )}
+              {selectedDate && !selectedDateClosed && (
                 <form onSubmit={handleBooking} className="space-y-6">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-3">
@@ -244,7 +332,10 @@ export default function BookingSystem() {
                   </div>
 
                   <div className="space-y-3">
-                    <Label htmlFor="email" className="text-pink-900 font-medium ml-1">Correo Electrónico</Label>
+                    <Label htmlFor="email" className="text-pink-900 font-medium ml-1">
+                      Correo Electrónico{" "}
+                      <span className="text-pink-300 font-normal normal-case">(opcional)</span>
+                    </Label>
                     <Input
                       id="email"
                       type="email"
@@ -263,7 +354,7 @@ export default function BookingSystem() {
                           <SelectValue placeholder="Servicio" />
                         </SelectTrigger>
                         <SelectContent className="rounded-xl border-pink-100">
-                          {SERVICES.map((service) => (
+                          {services.filter((service) => service.active).map((service) => (
                             <SelectItem key={service.id} value={service.id} className="focus:bg-pink-50 focus:text-pink-700">
                               {service.name}
                             </SelectItem>
@@ -297,9 +388,9 @@ export default function BookingSystem() {
                     </div>
                   </div>
 
-                  <Button 
-                    type="submit" 
-                    className="w-full h-14 bg-pink-500 hover:bg-pink-600 text-white transition-all duration-300 rounded-xl shadow-lg shadow-pink-200 font-medium text-lg"
+                  <Button
+                    type="submit"
+                    className="w-full h-14 bg-pink-500 hover:bg-pink-600 text-white transition-all duration-150 active:scale-[0.96] active:bg-pink-700 rounded-xl shadow-lg shadow-pink-200 font-medium text-lg"
                     disabled={!selectedHour || !firstName || !lastName || !phone || !selectedServiceId}
                   >
                     Confirmar Reserva
@@ -307,31 +398,34 @@ export default function BookingSystem() {
                 </form>
               )}
 
-              <div className="pt-8 border-t border-pink-50/50">
-                <h3 className="text-sm font-semibold text-pink-900 mb-5 flex items-center gap-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-pink-400" />
-                  Estado del Horario (9 AM - 4 PM)
-                </h3>
-                <div className="grid grid-cols-4 gap-3">
-                  {BUSINESS_HOURS.map((hour) => {
-                    const occupancy = getChairOccupancyForDate(selectedDate!);
-                    const isFull = (occupancy[hour] || 0) >= MAX_CHAIRS;
-                    return (
-                      <div
-                        key={hour}
-                        className={cn(
-                          "py-3 px-1 text-[11px] font-medium text-center rounded-xl border transition-all duration-200 shadow-sm",
-                          isFull
-                            ? "bg-red-50 border-red-100 text-red-600 shadow-red-50"
-                            : "bg-green-50 border-green-100 text-green-600 shadow-green-50"
-                        )}
-                      >
-                        {hour === 12 ? "12 PM" : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
-                      </div>
-                    );
-                  })}
+              {!selectedDateClosed && (
+                <div className="pt-8 border-t border-pink-50/50">
+                  <h3 className="text-sm font-semibold text-pink-900 mb-5 flex items-center gap-2">
+                    <div className="w-1.5 h-1.5 rounded-full bg-pink-400" />
+                    Estado del Horario ({formatHourLabel(BUSINESS_OPEN_HOUR)} - {formatHourLabel(getCloseHourForDate(selectedDate!))}
+                    {selectedDateMaxChairs !== DEFAULT_MAX_CHAIRS ? ` · ${selectedDateMaxChairs} silla${selectedDateMaxChairs === 1 ? "" : "s"}` : ""})
+                  </h3>
+                  <div className="grid grid-cols-4 gap-3">
+                    {selectedDateBusinessHours.map((hour) => {
+                      const occupancy = getChairOccupancyForDate(selectedDate!);
+                      const isFull = (occupancy[hour] || 0) >= selectedDateMaxChairs;
+                      return (
+                        <div
+                          key={hour}
+                          className={cn(
+                            "py-3 px-1 text-[11px] font-medium text-center rounded-xl border transition-all duration-200 shadow-sm",
+                            isFull
+                              ? "bg-red-50 border-red-100 text-red-600 shadow-red-50"
+                              : "bg-green-50 border-green-100 text-green-600 shadow-green-50"
+                          )}
+                        >
+                          {formatHourLabel(hour)}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>

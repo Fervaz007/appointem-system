@@ -9,6 +9,7 @@ export interface Appointment {
   hour: number;
   client: Client;
   service: Service;
+  chairId: string;
   status: AppointmentStatus;
   notes?: string;
 }
