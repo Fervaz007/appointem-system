@@ -5,6 +5,7 @@ import { DayScheduleRepository } from "../../domain/interfaces/DayScheduleReposi
 type DayScheduleRow = {
   date: string;
   is_closed: boolean;
+  open_hour: number | null;
   close_hour: number | null;
   chairs_available: number | null;
 };
@@ -13,6 +14,7 @@ function mapRow(row: DayScheduleRow): DaySchedule {
   return {
     date: row.date,
     isClosed: row.is_closed,
+    openHour: row.open_hour,
     closeHour: row.close_hour,
     chairsAvailable: row.chairs_available,
   };
@@ -46,6 +48,7 @@ export class SupabaseDayScheduleRepository implements DayScheduleRepository {
       .upsert({
         date: schedule.date,
         is_closed: schedule.isClosed,
+        open_hour: schedule.openHour,
         close_hour: schedule.closeHour,
         chairs_available: schedule.chairsAvailable,
       })

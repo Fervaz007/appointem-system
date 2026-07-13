@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Appointment, AppointmentStatus } from "../../domain/entities/Appointment";
 import { AppointmentRepository } from "../../domain/interfaces/AppointmentRepository";
+import { ChairConflictError } from "../../domain/errors/ChairConflictError";
+
+const EXCLUSION_VIOLATION = "23P01";
 
 type AppointmentRow = {
   id: string;
@@ -91,7 +94,7 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
       .filter((a): a is Appointment => a !== null);
   }
 
-  async create(appointment: Appointment): Promise<Appointment> {
+  async create(appointment: Appointment, chairCandidates: string[] = [appointment.chairId]): Promise<Appointment> {
     const { data: clientData, error: clientError } = await this.client
       .from("clients")
       .insert({
@@ -103,25 +106,35 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
       .single();
     if (clientError) throw new Error(clientError.message);
 
-    const { data: apptData, error: apptError } = await this.client
-      .from("Appointments")
-      .insert({
-        client_id: clientData.id,
-        date: toDateStr(appointment.date),
-        time: toTimeStr(appointment.hour),
-        status: appointment.status,
-        chair_id: appointment.chairId,
-        service_type: appointment.service.id,
-        service_name: appointment.service.name,
-        duration_hours: appointment.service.duration,
-        price: appointment.service.price,
-        notes: appointment.notes ?? null,
-      })
-      .select("*")
-      .single();
-    if (apptError) throw new Error(apptError.message);
+    for (const chairId of chairCandidates) {
+      const { data: apptData, error: apptError } = await this.client
+        .from("Appointments")
+        .insert({
+          client_id: clientData.id,
+          date: toDateStr(appointment.date),
+          time: toTimeStr(appointment.hour),
+          status: appointment.status,
+          chair_id: chairId,
+          service_type: appointment.service.id,
+          service_name: appointment.service.name,
+          duration_hours: appointment.service.duration,
+          price: appointment.service.price,
+          notes: appointment.notes ?? null,
+        })
+        .select("*")
+        .single();
 
-    return this.mapRow(apptData as AppointmentRow, clientData as ClientRow);
+      if (!apptError) {
+        return this.mapRow(apptData as AppointmentRow, clientData as ClientRow);
+      }
+
+      if (apptError.code !== EXCLUSION_VIOLATION) {
+        throw new Error(apptError.message);
+      }
+      // esta silla fue tomada por otra petición concurrente entre la validación y el insert; probar la siguiente
+    }
+
+    throw new ChairConflictError();
   }
 
   async findAll(): Promise<Appointment[]> {

@@ -5,6 +5,7 @@ import { DaySchedule } from "../../domain/entities/DaySchedule";
 export const DayScheduleSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Fecha inválida (YYYY-MM-DD)"),
   isClosed: z.boolean().default(false),
+  openHour: z.number().int().min(0).max(23).nullable().default(null),
   closeHour: z.number().int().min(0).max(23).nullable().default(null),
   chairsAvailable: z.number().int().positive().nullable().default(null),
 });

@@ -5,6 +5,7 @@
 export interface DaySchedule {
   date: string; // "YYYY-MM-DD"
   isClosed: boolean;
+  openHour: number | null;
   closeHour: number | null;
   chairsAvailable: number | null;
 }

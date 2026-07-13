@@ -3,7 +3,9 @@ import { AppointmentRepository } from "../../domain/interfaces/AppointmentReposi
 import { ChairRepository } from "../../domain/interfaces/ChairRepository";
 import { DayScheduleRepository } from "../../domain/interfaces/DayScheduleRepository";
 import { Appointment } from "../../domain/entities/Appointment";
+import { ChairConflictError } from "../../domain/errors/ChairConflictError";
 
+export const DEFAULT_BUSINESS_OPEN_HOUR = 9;
 export const DEFAULT_BUSINESS_CLOSE_HOUR = 16;
 
 export const CreateAppointmentSchema = z.object({
@@ -45,9 +47,10 @@ export class CreateAppointmentUseCase {
       throw new Error("El negocio no abre ese día");
     }
 
+    const openHour = schedule?.openHour ?? DEFAULT_BUSINESS_OPEN_HOUR;
     const closeHour = schedule?.closeHour ?? DEFAULT_BUSINESS_CLOSE_HOUR;
-    if (validated.hour + validated.service.duration > closeHour) {
-      throw new Error("El horario solicitado excede el horario de atención de ese día");
+    if (validated.hour < openHour || validated.hour + validated.service.duration > closeHour) {
+      throw new Error("El horario solicitado está fuera del horario de atención de ese día");
     }
 
     const chairs = await this.chairRepository.findAll();
@@ -72,7 +75,7 @@ export class CreateAppointmentUseCase {
       }
     }
 
-    const assignedChair = chairPool.find((chairId) => {
+    const availableChairs = chairPool.filter((chairId) => {
       for (let i = 0; i < validated.service.duration; i++) {
         const h = validated.hour + i;
         if (occupiedChairsByHour.get(h)?.has(chairId)) return false;
@@ -80,7 +83,7 @@ export class CreateAppointmentUseCase {
       return true;
     });
 
-    if (!assignedChair) {
+    if (availableChairs.length === 0) {
       throw new Error("No hay disponibilidad para ese horario");
     }
 
@@ -90,11 +93,20 @@ export class CreateAppointmentUseCase {
       hour: validated.hour,
       client: { id: "", ...validated.client },
       service: validated.service,
-      chairId: assignedChair,
+      chairId: availableChairs[0],
       status: "pendiente",
       notes: validated.notes,
     };
 
-    return await this.appointmentRepository.create(appointment);
+    try {
+      return await this.appointmentRepository.create(appointment, availableChairs);
+    } catch (error) {
+      if (error instanceof ChairConflictError) {
+        throw new Error(
+          "Alguien más acaba de reservar ese horario. Por favor elige otra hora o silla."
+        );
+      }
+      throw error;
+    }
   }
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { format, isSameDay, startOfDay, addDays } from "date-fns";
 import { es } from "date-fns/locale";
 import { Calendar } from "@/presentation/ui/calendar";
@@ -32,9 +33,9 @@ import { DaySchedule } from "@/domain/entities/DaySchedule";
 const DEFAULT_MAX_CHAIRS = 3;
 
 // Horas de atención por default: abre 9:00 AM, cierra 4:00 PM (16h). Un día
-// puede sobreescribir la hora de cierre (ej. 7pm) o cerrar por completo desde
-// el panel de admin (day_schedules).
-const BUSINESS_OPEN_HOUR = 9;
+// puede sobreescribir la hora de apertura/cierre (ej. 11am - 7pm) o cerrar
+// por completo desde el panel de admin (day_schedules).
+const DEFAULT_BUSINESS_OPEN_HOUR = 9;
 const DEFAULT_BUSINESS_CLOSE_HOUR = 16;
 
 function formatHourLabel(hour: number): string {
@@ -82,6 +83,11 @@ export default function BookingSystem() {
     [getScheduleForDate]
   );
 
+  const getOpenHourForDate = React.useCallback(
+    (date: Date) => getScheduleForDate(date)?.openHour ?? DEFAULT_BUSINESS_OPEN_HOUR,
+    [getScheduleForDate]
+  );
+
   const getCloseHourForDate = React.useCallback(
     (date: Date) => getScheduleForDate(date)?.closeHour ?? DEFAULT_BUSINESS_CLOSE_HOUR,
     [getScheduleForDate]
@@ -98,13 +104,14 @@ export default function BookingSystem() {
 
   const getBusinessHoursForDate = React.useCallback(
     (date: Date) => {
+      const openHour = getOpenHourForDate(date);
       const closeHour = getCloseHourForDate(date);
       return Array.from(
-        { length: Math.max(closeHour - BUSINESS_OPEN_HOUR, 0) },
-        (_, i) => BUSINESS_OPEN_HOUR + i
+        { length: Math.max(closeHour - openHour, 0) },
+        (_, i) => openHour + i
       );
     },
-    [getCloseHourForDate]
+    [getOpenHourForDate, getCloseHourForDate]
   );
 
   // Obtener cuántas sillas están ocupadas en cada hora para una fecha
@@ -216,7 +223,13 @@ export default function BookingSystem() {
   return (
     <div className="min-h-screen bg-[#fff1f2] p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-6xl mx-auto space-y-8">
-        <header className="text-center space-y-2 py-8">
+        <header className="relative text-center space-y-2 py-8">
+          <Link
+            href="/admin"
+            className="absolute right-0 top-8 text-xs font-medium text-pink-300 hover:text-pink-500 transition-colors uppercase tracking-wider"
+          >
+            Panel Admin
+          </Link>
           <h1 className="text-5xl font-extralight text-pink-600 tracking-tighter">
             Vanessa Gonzalez
           </h1>
@@ -402,7 +415,7 @@ export default function BookingSystem() {
                 <div className="pt-8 border-t border-pink-50/50">
                   <h3 className="text-sm font-semibold text-pink-900 mb-5 flex items-center gap-2">
                     <div className="w-1.5 h-1.5 rounded-full bg-pink-400" />
-                    Estado del Horario ({formatHourLabel(BUSINESS_OPEN_HOUR)} - {formatHourLabel(getCloseHourForDate(selectedDate!))}
+                    Estado del Horario ({formatHourLabel(getOpenHourForDate(selectedDate!))} - {formatHourLabel(getCloseHourForDate(selectedDate!))}
                     {selectedDateMaxChairs !== DEFAULT_MAX_CHAIRS ? ` · ${selectedDateMaxChairs} silla${selectedDateMaxChairs === 1 ? "" : "s"}` : ""})
                   </h3>
                   <div className="grid grid-cols-4 gap-3">
