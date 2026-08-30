@@ -1,7 +1,7 @@
 import { Client } from "./Client";
 import { Service } from "./Service";
 
-export type AppointmentStatus = "pendiente" | "confirmada" | "cancelada" | "completada";
+export type AppointmentStatus = "pendiente" | "pago_pendiente" | "confirmada" | "cancelada" | "completada";
 
 export interface Appointment {
   id: string;

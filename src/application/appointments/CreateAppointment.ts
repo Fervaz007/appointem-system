@@ -22,6 +22,8 @@ export const CreateAppointmentSchema = z.object({
     name: z.string(),
     duration: z.number().positive(),
     price: z.number(),
+    active: z.boolean().default(true),
+    depositAmount: z.number().default(0),
   }),
   notes: z.string().optional(),
 });
@@ -94,7 +96,7 @@ export class CreateAppointmentUseCase {
       client: { id: "", ...validated.client },
       service: validated.service,
       chairId: availableChairs[0],
-      status: "pendiente",
+      status: validated.service.depositAmount > 0 ? "pago_pendiente" : "pendiente",
       notes: validated.notes,
     };
 

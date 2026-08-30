@@ -57,6 +57,9 @@ export default function BookingSystem() {
   const [email, setEmail] = useState("");
 
   const [isSuccess, setIsSuccess] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [pendingAppointmentId, setPendingAppointmentId] = useState<string | null>(null);
+  const [pendingDepositAmount, setPendingDepositAmount] = useState<number>(0);
 
   const selectedService = useMemo(() =>
     services.find(s => s.id === selectedServiceId),

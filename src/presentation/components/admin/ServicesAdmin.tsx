@@ -37,9 +37,10 @@ type ServiceFormState = {
   duration: string;
   price: string;
   active: boolean;
+  depositAmount: string;
 };
 
-const EMPTY_FORM: ServiceFormState = { name: "", duration: "", price: "", active: true };
+const EMPTY_FORM: ServiceFormState = { name: "", duration: "", price: "", active: true, depositAmount: "" };
 
 export default function ServicesAdmin() {
   const { services, loading, createService, updateService, deleteService } = useServices();
@@ -61,6 +62,7 @@ export default function ServicesAdmin() {
       duration: String(service.duration),
       price: String(service.price),
       active: service.active,
+      depositAmount: String(service.depositAmount || 0),
     });
     setOpen(true);
   };
@@ -71,10 +73,11 @@ export default function ServicesAdmin() {
     try {
       const duration = parseFloat(form.duration);
       const price = parseFloat(form.price);
+      const depositAmount = parseFloat(form.depositAmount || "0");
       if (editingId) {
-        await updateService(editingId, { name: form.name, duration, price, active: form.active });
+        await updateService(editingId, { name: form.name, duration, price, active: form.active, depositAmount });
       } else {
-        await createService({ id: slugify(form.name), name: form.name, duration, price, active: form.active });
+        await createService({ id: slugify(form.name), name: form.name, duration, price, active: form.active, depositAmount });
       }
       setOpen(false);
     } catch (err) {
@@ -123,6 +126,7 @@ export default function ServicesAdmin() {
                 <TableHead>Nombre</TableHead>
                 <TableHead>Duración</TableHead>
                 <TableHead>Precio</TableHead>
+                <TableHead>Anticipo</TableHead>
                 <TableHead>Estado</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
@@ -133,6 +137,7 @@ export default function ServicesAdmin() {
                   <TableCell className="font-medium">{service.name}</TableCell>
                   <TableCell>{service.duration}h</TableCell>
                   <TableCell>${service.price.toFixed(2)}</TableCell>
+                  <TableCell>${(service.depositAmount || 0).toFixed(2)}</TableCell>
                   <TableCell>
                     <span className={service.active ? "text-green-600" : "text-slate-400"}>
                       {service.active ? "Activo" : "Inactivo"}
@@ -170,9 +175,9 @@ export default function ServicesAdmin() {
                 required
               />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="service-duration">Duración (horas) *</Label>
+                <Label htmlFor="service-duration">Duración *</Label>
                 <Input
                   id="service-duration"
                   type="number"
@@ -192,6 +197,18 @@ export default function ServicesAdmin() {
                   step="0.01"
                   value={form.price}
                   onChange={(e) => setForm({ ...form, price: e.target.value })}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="service-deposit">Anticipo *</Label>
+                <Input
+                  id="service-deposit"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={form.depositAmount}
+                  onChange={(e) => setForm({ ...form, depositAmount: e.target.value })}
                   required
                 />
               </div>

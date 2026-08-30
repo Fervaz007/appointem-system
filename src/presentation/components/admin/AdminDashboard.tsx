@@ -6,6 +6,7 @@ import ServicesAdmin from "./ServicesAdmin";
 import ChairsAdmin from "./ChairsAdmin";
 import ScheduleAdmin from "./ScheduleAdmin";
 import AppointmentsAdmin from "./AppointmentsAdmin";
+import ClientsAdmin from "./ClientsAdmin";
 
 export default function AdminDashboard() {
   return (
@@ -45,6 +46,9 @@ export default function AdminDashboard() {
             <TabsTrigger value="appointments" className="rounded-xl px-4 py-2 text-sm">
               Citas
             </TabsTrigger>
+            <TabsTrigger value="clients" className="rounded-xl px-4 py-2 text-sm">
+              Clientes
+            </TabsTrigger>
           </TabsList>
 
           <TabsContent value="services" className="mt-6">
@@ -58,6 +62,9 @@ export default function AdminDashboard() {
           </TabsContent>
           <TabsContent value="appointments" className="mt-6">
             <AppointmentsAdmin />
+          </TabsContent>
+          <TabsContent value="clients" className="mt-6">
+            <ClientsAdmin />
           </TabsContent>
         </Tabs>
 

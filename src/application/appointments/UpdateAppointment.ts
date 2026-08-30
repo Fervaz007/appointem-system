@@ -6,7 +6,7 @@ export const UpdateAppointmentSchema = z.object({
   date: z.coerce.date().optional(),
   hour: z.number().int().min(0).max(23).optional(),
   chairId: z.string().optional(),
-  status: z.enum(["pendiente", "confirmada", "cancelada", "completada"]).optional(),
+  status: z.enum(["pendiente", "pago_pendiente", "confirmada", "cancelada", "completada"]).optional(),
   notes: z.string().optional(),
   client: z
     .object({
@@ -22,6 +22,8 @@ export const UpdateAppointmentSchema = z.object({
       name: z.string(),
       duration: z.number().positive(),
       price: z.number(),
+      active: z.boolean().optional(),
+      depositAmount: z.number().optional(),
     })
     .optional(),
 });

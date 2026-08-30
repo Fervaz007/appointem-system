@@ -8,6 +8,7 @@ export const CreateServiceSchema = z.object({
   duration: z.number().positive(),
   price: z.number().nonnegative(),
   active: z.boolean().default(true),
+  depositAmount: z.number().nonnegative().default(0),
 });
 
 export const UpdateServiceSchema = CreateServiceSchema.partial();

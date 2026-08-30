@@ -16,6 +16,7 @@ type AppointmentRow = {
   service_name: string;
   duration_hours: number;
   price: number;
+  deposit_amount: number;
   notes: string | null;
 };
 
@@ -69,6 +70,7 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
         duration: row.duration_hours,
         price: Number(row.price),
         active: true,
+        depositAmount: Number(row.deposit_amount || 0),
       },
       chairId: String(row.chair_id),
       status: row.status as AppointmentStatus,
@@ -95,16 +97,45 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
   }
 
   async create(appointment: Appointment, chairCandidates: string[] = [appointment.chairId]): Promise<Appointment> {
-    const { data: clientData, error: clientError } = await this.client
-      .from("clients")
-      .insert({
-        name: `${appointment.client.firstName} ${appointment.client.lastName}`,
-        phone: appointment.client.phone,
-        email: appointment.client.email ?? null,
-      })
-      .select("*")
-      .single();
-    if (clientError) throw new Error(clientError.message);
+    let clientData: ClientRow | null = null;
+
+    if (appointment.client.email) {
+      const { data: existingClient, error: findError } = await this.client
+        .from("clients")
+        .select("*")
+        .eq("email", appointment.client.email)
+        .maybeSingle();
+
+      if (!findError && existingClient) {
+        clientData = existingClient as ClientRow;
+      }
+    }
+
+    if (!clientData && appointment.client.phone) {
+      const { data: existingClient, error: findError } = await this.client
+        .from("clients")
+        .select("*")
+        .eq("phone", appointment.client.phone)
+        .maybeSingle();
+
+      if (!findError && existingClient) {
+        clientData = existingClient as ClientRow;
+      }
+    }
+
+    if (!clientData) {
+      const { data, error: clientError } = await this.client
+        .from("clients")
+        .insert({
+          name: `${appointment.client.firstName} ${appointment.client.lastName}`,
+          phone: appointment.client.phone,
+          email: appointment.client.email ?? null,
+        })
+        .select("*")
+        .single();
+      if (clientError) throw new Error(clientError.message);
+      clientData = data as ClientRow;
+    }
 
     for (const chairId of chairCandidates) {
       const { data: apptData, error: apptError } = await this.client
@@ -119,6 +150,7 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
           service_name: appointment.service.name,
           duration_hours: appointment.service.duration,
           price: appointment.service.price,
+          deposit_amount: appointment.service.depositAmount || 0,
           notes: appointment.notes ?? null,
         })
         .select("*")
@@ -192,6 +224,9 @@ export class SupabaseAppointmentRepository implements AppointmentRepository {
       patch.service_name = appointment.service.name;
       patch.duration_hours = appointment.service.duration;
       patch.price = appointment.service.price;
+      if (appointment.service.depositAmount !== undefined) {
+        patch.deposit_amount = appointment.service.depositAmount;
+      }
     }
 
     if (Object.keys(patch).length > 0) {

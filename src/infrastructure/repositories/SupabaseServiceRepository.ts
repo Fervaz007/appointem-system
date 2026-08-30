@@ -8,6 +8,7 @@ type ServiceRow = {
   duration_hours: number;
   price: number;
   active: boolean;
+  deposit_amount: number;
 };
 
 function mapRow(row: ServiceRow): Service {
@@ -17,6 +18,7 @@ function mapRow(row: ServiceRow): Service {
     duration: row.duration_hours,
     price: Number(row.price),
     active: row.active,
+    depositAmount: Number(row.deposit_amount || 0),
   };
 }
 
@@ -48,6 +50,7 @@ export class SupabaseServiceRepository implements ServiceRepository {
         duration_hours: service.duration,
         price: service.price,
         active: service.active,
+        deposit_amount: service.depositAmount || 0,
       })
       .select("*")
       .single();
@@ -61,6 +64,7 @@ export class SupabaseServiceRepository implements ServiceRepository {
     if (service.duration !== undefined) patch.duration_hours = service.duration;
     if (service.price !== undefined) patch.price = service.price;
     if (service.active !== undefined) patch.active = service.active;
+    if (service.depositAmount !== undefined) patch.deposit_amount = service.depositAmount;
 
     const { data, error } = await this.client
       .from("services")

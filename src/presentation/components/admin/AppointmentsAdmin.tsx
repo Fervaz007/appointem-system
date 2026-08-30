@@ -42,10 +42,11 @@ import { useChairs } from "@/presentation/hooks/useChairs";
 import { useServices } from "@/presentation/hooks/useServices";
 import { Appointment, AppointmentStatus } from "@/domain/entities/Appointment";
 
-const STATUS_OPTIONS: AppointmentStatus[] = ["pendiente", "confirmada", "cancelada", "completada"];
+const STATUS_OPTIONS: AppointmentStatus[] = ["pendiente", "pago_pendiente", "confirmada", "cancelada", "completada"];
 
 const STATUS_LABELS: Record<AppointmentStatus, string> = {
   pendiente: "Pendiente",
+  pago_pendiente: "Pago Pendiente",
   confirmada: "Confirmada",
   cancelada: "Cancelada",
   completada: "Completada",
@@ -53,6 +54,7 @@ const STATUS_LABELS: Record<AppointmentStatus, string> = {
 
 const STATUS_COLORS: Record<AppointmentStatus, string> = {
   pendiente: "text-amber-600",
+  pago_pendiente: "text-blue-500",
   confirmada: "text-green-600",
   cancelada: "text-red-500",
   completada: "text-slate-400",
@@ -157,6 +159,8 @@ export default function AppointmentsAdmin() {
         name: selectedService.name,
         duration: selectedService.duration,
         price: selectedService.price,
+        active: selectedService.active,
+        depositAmount: selectedService.depositAmount || 0,
       };
       const date = new Date(`${form.date}T00:00:00`);
       const hour = parseInt(form.hour, 10);

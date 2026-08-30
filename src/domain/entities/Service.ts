@@ -4,4 +4,6 @@ export interface Service {
   duration: number; // en horas
   price: number;
   active: boolean;
+  depositAmount: number; // monto del anticipo en la moneda local
 }
+
